@@ -8,3 +8,13 @@ export type TelemetryMessage = {
   nodeId: string;
   metrics: Record<string, MetricValue>;
 };
+
+export type NodeSummary = {
+  key: string;
+  gatewayId: string;
+  nodeType: "lora" | "xiao";
+  nodeId: string;
+  lastSeenTs: number;
+  lastTopic: string;
+  metrics: Record<string, MetricValue>;
+};

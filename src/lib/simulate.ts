@@ -10,8 +10,8 @@ const xiaoNodes = ["xiao-001", "xiao-002", "xiao-003", "xiao-004", "xiao-005"];
 
 export function generateSimMessage(): TelemetryMessage {
   const gatewayId = gateways[Math.floor(Math.random() * gateways.length)];
+  const nodeType: "lora" | "xiao" = Math.random() < 0.5 ? "lora" : "xiao";
 
-  const nodeType = Math.random() < 0.5 ? "lora" : "xiao";
   const nodeId =
     nodeType === "lora"
       ? loraNodes[Math.floor(Math.random() * loraNodes.length)]
@@ -28,6 +28,7 @@ export function generateSimMessage(): TelemetryMessage {
           pm25_ugm3: +rand(0, 250).toFixed(1),
           batt_v: +rand(3.4, 4.2).toFixed(2),
           rssi_dbm: Math.floor(rand(-120, -40)),
+          alarm: rand(0, 1) > 0.97 ? true : undefined,
         }
       : {
           accel_rms_g: +rand(0, 0.15).toFixed(4),
