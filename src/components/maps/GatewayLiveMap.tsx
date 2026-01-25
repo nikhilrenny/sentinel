@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import maplibregl, { Map } from "maplibre-gl";
+import maplibregl, { Map, StyleSpecification } from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
 
-type Health = "green" | "amber" | "red" | "grey";
+export type Health = "green" | "amber" | "red" | "grey";
 
 export type GatewayMapPoint = {
   id: string;
@@ -24,18 +25,20 @@ function color(h: Health) {
     : "#9ca3af";
 }
 
+// Attach markers to map without `any`
+type MapWithSentinelMarkers = Map & { __sentinelMarkers?: maplibregl.Marker[] };
+
 export function GatewayLiveMap({ points }: { points: GatewayMapPoint[] }) {
-  const mapRef = useRef<Map | null>(null);
+  const mapRef = useRef<MapWithSentinelMarkers | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Choose a style:
-  // Option A (recommended): MapTiler - set NEXT_PUBLIC_MAPTILER_KEY
-  // Option B: OSM raster style (no key, but usage-limits apply)
-  const styleUrl = useMemo(() => {
+  const styleSpec: StyleSpecification = useMemo(() => {
     const k = process.env.NEXT_PUBLIC_MAPTILER_KEY;
-    if (k) return `https://api.maptiler.com/maps/streets/style.json?key=${k}`;
+    if (k) {
+      // MapLibre accepts a URL string for style; we handle that at init time.
+      // This function returns a fallback styleSpec when no key is present.
+    }
 
-    // Basic OSM raster style (fallback)
     return {
       version: 8,
       sources: {
@@ -47,20 +50,25 @@ export function GatewayLiveMap({ points }: { points: GatewayMapPoint[] }) {
         },
       },
       layers: [{ id: "osm", type: "raster", source: "osm" }],
-    } as any;
+    } as StyleSpecification;
   }, []);
+
+  const styleUrlOrSpec = useMemo(() => {
+    const k = process.env.NEXT_PUBLIC_MAPTILER_KEY;
+    if (k) return `https://api.maptiler.com/maps/streets/style.json?key=${k}`;
+    return styleSpec;
+  }, [styleSpec]);
 
   useEffect(() => {
     if (!containerRef.current) return;
     if (mapRef.current) return;
 
-    // Default view: global, but slightly biased to Europe/UK
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: styleUrl as any,
+      style: styleUrlOrSpec,
       center: [-10, 35],
       zoom: 2.2,
-    });
+    }) as MapWithSentinelMarkers;
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "top-right");
     map.addControl(new maplibregl.ScaleControl({ unit: "metric" }));
@@ -71,19 +79,17 @@ export function GatewayLiveMap({ points }: { points: GatewayMapPoint[] }) {
       map.remove();
       mapRef.current = null;
     };
-  }, [styleUrl]);
+  }, [styleUrlOrSpec]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    // Remove old markers (simple approach)
-    // We store them on the map instance
-    const anyMap = map as any;
-    if (anyMap.__sentinelMarkers) {
-      for (const m of anyMap.__sentinelMarkers) m.remove();
+    // Remove old markers
+    if (map.__sentinelMarkers) {
+      for (const m of map.__sentinelMarkers) m.remove();
     }
-    anyMap.__sentinelMarkers = [];
+    map.__sentinelMarkers = [];
 
     // Add markers
     for (const p of points) {
@@ -110,7 +116,7 @@ export function GatewayLiveMap({ points }: { points: GatewayMapPoint[] }) {
         .setPopup(popup)
         .addTo(map);
 
-      anyMap.__sentinelMarkers.push(marker);
+      map.__sentinelMarkers.push(marker);
     }
   }, [points]);
 
