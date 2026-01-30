@@ -7,6 +7,7 @@ export type RunMode = "demo" | "live";
 
 const KEY_MODE = "sentinel:runMode";
 const KEY_RAW = "sentinel:rawTelemetry";
+const KEY_SIM = "sentinel:simData";
 
 function safeGet(key: string): string | null {
   if (typeof window === "undefined") return null;
@@ -43,6 +44,17 @@ export function setRawTelemetryEnabled(v: boolean) {
   safeSet(KEY_RAW, v ? "1" : "0");
 }
 
+// Simulation dataset on/off (applies to Demo mode)
+export function getSimDataEnabled(): boolean {
+  const v = safeGet(KEY_SIM);
+  // default ON (so the dashboard isn't empty on first run)
+  return v === null ? true : v === "1";
+}
+
+export function setSimDataEnabled(v: boolean) {
+  safeSet(KEY_SIM, v ? "1" : "0");
+}
+
 /**
  * Persisted settings hook:
  * - No setState-in-effect initialisation (avoids the error you saw)
@@ -52,11 +64,12 @@ export function setRawTelemetryEnabled(v: boolean) {
 export function useAppSettings() {
   const [runMode, _setRunMode] = useState<RunMode>(() => getRunMode());
   const [rawTelemetry, _setRawTelemetry] = useState<boolean>(() => getRawTelemetryEnabled());
+  const [simData, _setSimData] = useState<boolean>(() => getSimDataEnabled());
   const [demoScale, _setDemoScale] = useState<DemoScale>(() => getDemoScale());
 
   const updateDemoScale = useCallback((v: DemoScale) => {
-  _setDemoScale(v);
-  setDemoScale(v);
+    _setDemoScale(v);
+    setDemoScale(v);
   }, []);
 
   const updateRunMode = useCallback((mode: RunMode) => {
@@ -69,11 +82,17 @@ export function useAppSettings() {
     setRawTelemetryEnabled(v);
   }, []);
 
+  const updateSimData = useCallback((v: boolean) => {
+    _setSimData(v);
+    setSimDataEnabled(v);
+  }, []);
+
   // Keep multiple tabs in sync (optional but useful)
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key === KEY_MODE) _setRunMode(getRunMode());
       if (e.key === KEY_RAW) _setRawTelemetry(getRawTelemetryEnabled());
+      if (e.key === KEY_SIM) _setSimData(getSimDataEnabled());
       if (e.key === KEY_DEMO_SCALE) _setDemoScale(getDemoScale());
 
     };
@@ -86,6 +105,8 @@ export function useAppSettings() {
     setRunMode: updateRunMode,
     rawTelemetry,
     setRawTelemetry: updateRawTelemetry,
+    simData,
+    setSimData: updateSimData,
     demoScale,
     setDemoScale: updateDemoScale,
   };

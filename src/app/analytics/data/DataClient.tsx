@@ -1,118 +1,143 @@
 "use client";
 
-type Row = {
-  ts: string;          // timestamp ISO
-  gatewayId: string;
-  nodeId: string;
-  profile: string;
-  role: string;
-  networks: string;    // e.g. "lora, mesh"
-  summary: string;     // short message preview
-};
+import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useTelemetrySource } from "@/lib/data/useTelemetrySource";
+import { isNodeOnline } from "@/lib/data/derive";
+import { useAppSettings } from "@/lib/appSettings";
 
 export default function DataClient() {
-  // Placeholder rows (we’ll wire real data next)
-  const rows: Row[] = [];
+  const params = useSearchParams();
+  const gatewayFilter = params.get("gateway");
+
+  const { enabled, nodes, latestByNode, lastUpdatedAt } = useTelemetrySource();
+  const { rawTelemetry } = useAppSettings();
+  const nowMs = lastUpdatedAt;
+
+  const [q, setQ] = useState("");
+
+  const rows = useMemo(() => {
+    const qq = q.trim().toLowerCase();
+    const out = nodes
+      .filter((n) => (gatewayFilter ? n.gateway_id === gatewayFilter : true))
+      .map((n) => {
+        const m = latestByNode[n.node_id];
+        const online = isNodeOnline(m, nowMs);
+        return {
+          node_id: n.node_id,
+          gateway_id: n.gateway_id,
+          profile: n.profile,
+          networks: n.networks.join("+"),
+          online,
+          timestamp: m?.timestamp ?? "—",
+          battery_v: m ? m.battery_v : null,
+          rssi: m?.links.lora ? m.links.lora.rssi_dbm : m?.links.mesh ? m.links.mesh.rssi_dbm : null,
+          snr: m?.links.lora ? m.links.lora.snr_db : null,
+          status_flags: m ? m.status_flags : null,
+          payload: m ? m.payload : null,
+          raw: m ?? null,
+        };
+      });
+
+    const filtered = out.filter((r) => {
+      if (!qq) return true;
+      return `${r.node_id} ${r.gateway_id} ${r.profile}`.toLowerCase().includes(qq);
+    });
+
+    filtered.sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
+    return filtered.slice(0, 200);
+  }, [nodes, latestByNode, nowMs, q, gatewayFilter]);
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      {/* Header */}
-      {/* <div> 
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900 }}>Data</h1>
+      <div>
+        <h1 style={{ margin: 0, fontSize: 26, fontWeight: 900 }}>Raw data</h1>
         <div style={{ marginTop: 6, fontSize: 13, color: "#6b7280" }}>
-          Browse telemetry from gateways and nodes
+          {enabled ? (
+            <>
+              Latest telemetry snapshots (not historical). Showing up to <b>{rows.length}</b> rows.
+              {gatewayFilter ? (
+                <>
+                  {" "}Filtered to <b>{gatewayFilter}</b>.
+                </>
+              ) : null}
+            </>
+          ) : (
+            <>No data (simulation disabled). Enable it in <b>Settings → Telemetry & Fleet</b>.</>
+          )}
         </div>
-      </div> */}
-
-      {/* Filters (placeholder UI) */}
-      <div
-        style={{
-          border: "1px solid #e5e7eb",
-          borderRadius: 14,
-          padding: 14,
-          background: "#fff",
-          display: "grid",
-          gridTemplateColumns: "2fr 1fr 1fr 1fr",
-          gap: 12,
-        }}
-      >
-        <input
-          placeholder="Search gatewayId / nodeId"
-          style={{
-            width: "100%",
-            border: "1px solid #e5e7eb",
-            borderRadius: 10,
-            padding: "10px 12px",
-            outline: "none",
-          }}
-        />
-        <select style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: "10px 12px" }}>
-          <option>Last 15 min</option>
-          <option>Last 1 hour</option>
-          <option>Last 24 hours</option>
-          <option>Custom (later)</option>
-        </select>
-        <select style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: "10px 12px" }}>
-          <option>All profiles</option>
-          <option>svs</option>
-          <option>aaq</option>
-          <option>sms</option>
-          <option>sss</option>
-          <option>tsr</option>
-        </select>
-        <select style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: "10px 12px" }}>
-          <option>All networks</option>
-          <option>lora</option>
-          <option>mesh</option>
-        </select>
       </div>
 
-      {/* Table */}
-      <div style={{ border: "1px solid #e5e7eb", borderRadius: 14, background: "#fff", overflow: "hidden" }}>
-        <div style={{ padding: 14, borderBottom: "1px solid #e5e7eb", fontWeight: 800 }}>Telemetry</div>
+      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search node_id / gateway / profile…"
+          style={{ flex: 1, padding: "10px 12px", borderRadius: 12, border: "1px solid #e5e7eb" }}
+        />
+        <div style={{ fontSize: 12, color: "#6b7280" }}>{rawTelemetry ? "Raw JSON enabled" : "Raw JSON disabled"}</div>
+      </div>
 
-        {rows.length === 0 ? (
-          <div style={{ padding: 14, color: "#6b7280", fontSize: 13 }}>No data yet.</div>
-        ) : (
-          <div style={{ width: "100%", overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ textAlign: "left" }}>
-                  {["Time", "Gateway", "Node", "Profile", "Role", "Networks", "Summary"].map((h) => (
-                    <th
-                      key={h}
-                      style={{
-                        fontSize: 12,
-                        color: "#6b7280",
-                        fontWeight: 700,
-                        padding: "10px 14px",
-                        borderBottom: "1px solid #e5e7eb",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
+      <div style={{ border: "1px solid #e5e7eb", borderRadius: 14, overflow: "hidden", background: "#fff" }}>
+        <div style={{ padding: "10px 12px", borderBottom: "1px solid #f3f4f6", fontWeight: 900 }}>Telemetry</div>
+
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: "#fafafa" }}>
+                {[
+                  "Timestamp",
+                  "Node",
+                  "Gateway",
+                  "Profile",
+                  "Networks",
+                  "Online",
+                  "Battery",
+                  "RSSI",
+                  "SNR",
+                  "Flags",
+                  rawTelemetry ? "Payload" : "",
+                ]
+                  .filter(Boolean)
+                  .map((h) => (
+                    <th key={h} style={{ textAlign: "left", padding: "10px 12px", borderBottom: "1px solid #f3f4f6" }}>
                       {h}
                     </th>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r, idx) => (
-                  <tr key={idx}>
-                    <td style={{ padding: "10px 14px", borderBottom: "1px solid #f3f4f6", whiteSpace: "nowrap" }}>
-                      {r.ts}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.node_id}>
+                  <td style={{ padding: "10px 12px", borderBottom: "1px solid #f9fafb", color: "#6b7280" }}>{r.timestamp}</td>
+                  <td style={{ padding: "10px 12px", borderBottom: "1px solid #f9fafb", fontWeight: 900 }}>{r.node_id}</td>
+                  <td style={{ padding: "10px 12px", borderBottom: "1px solid #f9fafb" }}>{r.gateway_id}</td>
+                  <td style={{ padding: "10px 12px", borderBottom: "1px solid #f9fafb" }}>{r.profile.toUpperCase()}</td>
+                  <td style={{ padding: "10px 12px", borderBottom: "1px solid #f9fafb" }}>{r.networks}</td>
+                  <td style={{ padding: "10px 12px", borderBottom: "1px solid #f9fafb" }}>{r.online ? "yes" : "no"}</td>
+                  <td style={{ padding: "10px 12px", borderBottom: "1px solid #f9fafb" }}>
+                    {r.battery_v == null ? "—" : `${r.battery_v.toFixed(2)} V`}
+                  </td>
+                  <td style={{ padding: "10px 12px", borderBottom: "1px solid #f9fafb" }}>{r.rssi == null ? "—" : r.rssi}</td>
+                  <td style={{ padding: "10px 12px", borderBottom: "1px solid #f9fafb" }}>{r.snr == null ? "—" : r.snr}</td>
+                  <td style={{ padding: "10px 12px", borderBottom: "1px solid #f9fafb" }}>{r.status_flags == null ? "—" : r.status_flags}</td>
+                  {rawTelemetry ? (
+                    <td style={{ padding: "10px 12px", borderBottom: "1px solid #f9fafb", fontFamily: "ui-monospace, SFMono-Regular" }}>
+                      {r.raw ? JSON.stringify(r.raw.payload) : "—"}
                     </td>
-                    <td style={{ padding: "10px 14px", borderBottom: "1px solid #f3f4f6" }}>{r.gatewayId}</td>
-                    <td style={{ padding: "10px 14px", borderBottom: "1px solid #f3f4f6" }}>{r.nodeId}</td>
-                    <td style={{ padding: "10px 14px", borderBottom: "1px solid #f3f4f6" }}>{r.profile}</td>
-                    <td style={{ padding: "10px 14px", borderBottom: "1px solid #f3f4f6" }}>{r.role}</td>
-                    <td style={{ padding: "10px 14px", borderBottom: "1px solid #f3f4f6" }}>{r.networks}</td>
-                    <td style={{ padding: "10px 14px", borderBottom: "1px solid #f3f4f6" }}>{r.summary}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                  ) : null}
+                </tr>
+              ))}
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={rawTelemetry ? 11 : 10} style={{ padding: 14, color: "#6b7280" }}>
+                    No rows.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

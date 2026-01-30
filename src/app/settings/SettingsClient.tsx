@@ -59,7 +59,7 @@ export default function SettingsClient() {
 
   const [active, setActive] = useState<SectionKey>("connection");
 
-  const { runMode, setRunMode, rawTelemetry, setRawTelemetry } = useAppSettings();
+  const { runMode, setRunMode, rawTelemetry, setRawTelemetry, simData, setSimData, demoScale, setDemoScale } = useAppSettings();
   const modeLive = runMode === "live";
 
   return (
@@ -216,7 +216,62 @@ export default function SettingsClient() {
             >
               <div style={{ fontSize: 18, fontWeight: 900 }}>Telemetry & Fleet</div>
               <div style={{ marginTop: 6, fontSize: 13, color: "#6b7280" }}>
-                Placeholder. Next step will add demo registry + realtime telemetry presets.
+                Controls for the local simulation dataset (Demo mode) and what the UI renders.
+              </div>
+
+              <div style={{ height: 14 }} />
+
+              {/* Sim dataset */}
+              <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: 16, alignItems: "center" }}>
+                <div>
+                  <div style={{ fontWeight: 900, fontSize: 13 }}>Simulation dataset</div>
+                  <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
+                    When enabled (and Mode=Demo), all pages render realistic gateway + node telemetry.
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <Toggle checked={simData} onChange={setSimData} />
+                  <div style={{ fontWeight: 900 }}>{simData ? "Enabled" : "Disabled"}</div>
+                </div>
+              </div>
+
+              <div style={{ height: 12 }} />
+
+              {/* Scale */}
+              <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: 16, alignItems: "center" }}>
+                <div>
+                  <div style={{ fontWeight: 900, fontSize: 13 }}>Fleet size (demo)</div>
+                  <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
+                    Controls how many nodes are simulated across multiple gateways.
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  {[10, 100, 1000].map((n) => {
+                    const isActive = demoScale === n;
+                    return (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setDemoScale(n as any)}
+                        style={{
+                          padding: "10px 12px",
+                          borderRadius: 12,
+                          border: "1px solid " + (isActive ? "#111827" : "#e5e7eb"),
+                          background: isActive ? "#111827" : "#fff",
+                          color: isActive ? "#fff" : "#111827",
+                          fontWeight: 900,
+                          cursor: "pointer",
+                          minWidth: 72,
+                        }}
+                      >
+                        {n}
+                      </button>
+                    );
+                  })}
+                  <div style={{ fontSize: 12, color: "#6b7280" }}>
+                    {modeLive ? "(ignored in Live)" : "(applies in Demo)"}
+                  </div>
+                </div>
               </div>
             </section>
           ) : null}
